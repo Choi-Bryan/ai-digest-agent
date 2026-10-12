@@ -2,7 +2,7 @@ name: Daily AI Digest
 
 on:
   schedule:
-    - cron: "0 22 * * *"  # UTC 22:00 = JST 07:00
+    - cron: "0 22 * * *"
   workflow_dispatch:
 
 jobs:
@@ -12,15 +12,19 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install dependencies
         run: pip install -r requirements.txt
+
       - name: Run digest
         run: python digest.py
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       - name: Commit digest
         run: |
           git config user.name "digest-bot"
