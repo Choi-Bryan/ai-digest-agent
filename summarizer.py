@@ -14,13 +14,20 @@ summarizer.py — Gemini API로 영어 헤드라인을 한국어 한 줄로 요�
 import json
 import os
 import re
+import time
+import http.client
 import urllib.request
+import urllib.error
 
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 
-def _call_gemini(prompt):
-    """Gemini API에 프롬프트를 보내고 텍스트 응답을 반환."""
+def _call_gemini(prompt, retries=3):
+    """
+    Gemini API에 프롬프트를 보내고 텍스트 응답을 반환.
+    일시적 오류(503, 타임아웃 등)에는 백오프로 재시도한다.
+    매일 자동 실행되는 에이전트이므로, 일시 장애에 바로 죽지 않게 하는 것이 중요.
+    """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError(
@@ -34,9 +41,29 @@ def _call_gemini(prompt):
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    last_err = None
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except urllib.error.HTTPError as e:
+            # 400번대(429 제외)는 요청 자체의 문제라 재시도해도 소용없음.
+            # 단, 응답 본문을 남겨 원인을 파악할 수 있게 함.
+            detail = e.read().decode("utf-8", errors="replace")[:300]
+            last_err = f"HTTP {e.code}: {detail}"
+            if e.code != 429 and 400 <= e.code < 500:
+                raise RuntimeError(f"Gemini API 요청 오류 (재시도 안 함): {last_err}")
+            wait = 30 * (attempt + 1)
+            print(f"  API 일시 오류 ({last_err}). {wait}초 후 재시도 ({attempt + 1}/{retries})")
+            time.sleep(wait)
+        except (urllib.error.URLError, TimeoutError,
+                ConnectionError, http.client.HTTPException) as e:
+            last_err = e
+            wait = 30 * (attempt + 1)
+            print(f"  API 일시 오류 ({e}). {wait}초 후 재시도 ({attempt + 1}/{retries})")
+            time.sleep(wait)
+    raise RuntimeError(f"Gemini API 호출 실패 (재시도 {retries}회): {last_err}")
 
 
 def summarize_titles(titles):
@@ -57,7 +84,7 @@ def analyze_titles(titles):
 
     numbered = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(titles))
     prompt = (
-        "다음 영어 뉴스 헤드라인들을 분석해줘. 각 항목에 한국어 한 줄 요약과 중요도 점수를 매겨줘.\n"
+        "다음 뉴스 헤드라인들(영어·한국어·일본어)을 분석해줘. 각 항목에 한국어 한 줄 요약과 중요도 점수를 매겨줘.\n"
         "중요도 기준 (독자: AI 엔지니어 / AX 리더 — AI 시스템을 설계·운영하고 조직의 AI 전환을 이끄는 사람):\n"
         "- 5: 실무에 직접 영향 (새 모델·프레임워크 릴리스, 에이전트 기술, 평가/운영 방법론)\n"
         "- 4: 기술·업계 흐름을 보여주는 굵직한 소식 (대형 인수, 플랫폼 전략, 정책 변화)\n"
