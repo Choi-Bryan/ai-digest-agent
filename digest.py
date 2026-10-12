@@ -18,11 +18,13 @@ from pathlib import Path
 
 import summarizer  # v1: Gemini 한 줄 요약, v1.5: 중요도 분석 + 심층 개요
 
-# 수집할 RSS 피드 (주제: 피드 URL)
+# 수집할 RSS 피드 (주제: 피드 URL) — v2: Tesla 제외, AI 트렌드를 영/한/일 3개 언어로
 FEEDS = {
-    "Tesla": "https://news.google.com/rss/search?q=Tesla&hl=en-US&gl=US&ceid=US:en",
-    "AI 트렌드": "https://news.google.com/rss/search?q=%22artificial+intelligence%22&hl=en-US&gl=US&ceid=US:en",
+    "AI 트렌드 (EN)": "https://news.google.com/rss/search?q=%22artificial+intelligence%22&hl=en-US&gl=US&ceid=US:en",
+    "AI 트렌드 (KO)": "https://news.google.com/rss/search?q=%EC%9D%B8%EA%B3%B5%EC%A7%80%EB%8A%A5&hl=ko&gl=KR&ceid=KR:ko",
+    "AI 트렌드 (JA)": "https://news.google.com/rss/search?q=%E4%BA%BA%E5%B7%A5%E7%9F%A5%E8%83%BD&hl=ja&gl=JP&ceid=JP:ja",
 }
+
 
 MAX_PER_TOPIC = 10    # 주제별 최대 기사 수
 LOOKBACK_HOURS = 24   # 최근 N시간 이내 기사만 수집
